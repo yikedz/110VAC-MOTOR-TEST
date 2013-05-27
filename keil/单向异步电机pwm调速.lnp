@@ -1,0 +1,6 @@
+"STARTUP.obj",
+"main.obj",
+"modbus_slave.obj",
+"uart.obj",
+"soft_timer.obj" 
+TO "单向异步电机pwm调速" 

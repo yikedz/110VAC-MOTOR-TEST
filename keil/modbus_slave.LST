@@ -1,0 +1,322 @@
+C51 COMPILER V8.02   MODBUS_SLAVE                                                          05/27/2013 10:51:12 PAGE 1   
+
+
+C51 COMPILER V8.02, COMPILATION OF MODULE MODBUS_SLAVE
+OBJECT MODULE PLACED IN modbus_slave.OBJ
+COMPILER INVOKED BY: e:\Keil\C51\BIN\C51.EXE modbus_slave.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include<reg51.h>
+   2          #include "modbus_slave.h"
+   3          #include"uart.h"
+   4          
+   5          //-------------------------------------------
+   6          #ifdef RS485 
+   7                  sbit DIR485 = P1^5;//485通信控制位
+   8          #endif  
+   9          //-------------------------------------------
+  10          FLAG rec_one_frame_ok = 0;//接收一帧数据成功标志
+  11          FLAG modbus_rec_data_valid = 0;//接收到有效数据
+  12          //------------------------------------------- 
+  13          uchar HOST_ID = 1;//本机地址为1
+  14          uchar state = STATE_REC_HEADER;
+  15          uchar modbus_rec_count = 0;
+  16          //uchar xdata RX_BUF[40];//帧寄存器
+  17          //uint xdata modbus_reg[16];//modbus 寄存器
+  18          uchar RX_BUF[40];//帧寄存器
+  19          uint modbus_reg[16];//modbus 寄存器
+  20          //------------------------------------------- 
+  21          void uart_intterrupt(void) interrupt 4
+  22          {
+  23   1              static unsigned char rec_count = 0;
+  24   1              static unsigned char rec_temp_count = 0;
+  25   1              static  unsigned char rec_temp_buf[2];
+  26   1              unsigned char rec_buf;
+  27   1      
+  28   1          if(RI)//查询是否为接受完成 S2RI = 1
+  29   1          {
+  30   2                      RI = 0;
+  31   2                      rec_buf=SBUF;
+  32   2                      //上位机发送时高字节在前
+  33   2                      switch(state)
+  34   2                      {
+  35   3                              case STATE_REC_HEADER://帧开始标志
+  36   3                                      if(rec_buf==':')
+  37   3                                      {
+  38   4                                              state = STATE_REC_DATA;
+  39   4                                              rec_count = 0;
+  40   4                                              rec_temp_count = 0;
+  41   4                                      }
+  42   3                              break;
+  43   3                              
+  44   3                              case STATE_REC_DATA://开始接收数据
+  45   3                                      if(rec_buf==0x0d)//如果接收到回车
+  46   3                                      {
+  47   4                                              state = STATE_REC_END;
+  48   4                                      }
+  49   3                                      else
+  50   3                                      {
+  51   4                                              rec_temp_buf[rec_temp_count++] = rec_buf;
+  52   4                                      
+  53   4                                              if(rec_temp_count==2)
+  54   4                                              {
+  55   5                                                      rec_temp_count = 0;
+C51 COMPILER V8.02   MODBUS_SLAVE                                                          05/27/2013 10:51:12 PAGE 2   
+
+  56   5                                                      RX_BUF[rec_count++]=(ascii_to_hex(rec_temp_buf[0])<<4)+ascii_to_hex(rec_temp_buf[1]);
+  57   5                                                      
+  58   5                                                      //在此判断地址有效性
+  59   5                                                      if(rec_count==1)
+  60   5                                                      {
+  61   6                                                              if((RX_BUF[0]!=HOST_ID)&&(RX_BUF[0]!=Broadcast_Add))//判断是否为本机 或是广播地址
+  62   6                                                              {
+  63   7                                                                      state = STATE_REC_HEADER;//状态机复位
+  64   7                                                              }                                                       
+  65   6                                                      }               
+  66   5                                              }
+  67   4                                              
+  68   4                                      }
+  69   3                              break;
+  70   3      
+  71   3                              case STATE_REC_END://接收结束标志位 回车换行
+  72   3                                      if(rec_buf==0x0A)//接收到换行符
+  73   3                                      {
+  74   4                                              rec_one_frame_ok = 1;//接收到一有效帧
+  75   4                                              modbus_rec_count = rec_count;
+  76   4                                              state = STATE_REC_HEADER;//状态机复位                                   
+  77   4                                      }
+  78   3                                      else
+  79   3                                      {
+  80   4                                              state = STATE_REC_HEADER;//状态机复位                                   
+  81   4                                      }
+  82   3                              break;  
+  83   3                              default:
+  84   3                                      state  = STATE_REC_HEADER;
+  85   3                              break;
+  86   3                                                      
+  87   3                      }
+  88   2      
+  89   2              }
+  90   1              else
+  91   1              {
+  92   2              }
+  93   1              
+  94   1      }
+  95          
+  96          void modbus_decode(void)
+  97          {
+  98   1              unsigned char i;
+  99   1              unsigned char modbus_lrc_check = 0;//临时检验用
+ 100   1              unsigned char modbus_rec_function_code = 0;
+ 101   1              unsigned int  modbus_rec_rw_base = 0;//读写开始地址
+ 102   1              //-----------------------------------------------
+ 103   1              if(rec_one_frame_ok)//开始进行数据校验
+ 104   1              {
+ 105   2                      modbus_lrc_check  = 0;  
+ 106   2                      for(i=0;i<modbus_rec_count-1;i++)
+ 107   2                      {                                                                                                                
+ 108   3                              modbus_lrc_check = modbus_lrc_check+RX_BUF[i];  
+ 109   3                      }
+ 110   2                      modbus_lrc_check = (~modbus_lrc_check)+1;       
+ 111   2      
+ 112   2                              
+ 113   2                      if(RX_BUF[modbus_rec_count-1]==modbus_lrc_check)
+ 114   2                      {
+ 115   3                              modbus_rec_data_valid = 1;
+ 116   3                              #ifdef RS485
+ 117   3                                      DIR485 = 1;//转为发送状态
+C51 COMPILER V8.02   MODBUS_SLAVE                                                          05/27/2013 10:51:12 PAGE 3   
+
+ 118   3                                      delay_for_dir485(120);//转为发送状态切换时间
+ 119   3                              #endif
+ 120   3      
+ 121   3                      }  
+ 122   2                      else
+ 123   2                      {
+ 124   3                              #ifdef RS485
+ 125   3                                      DIR485 = 0;//转为接收状态       
+ 126   3                              #endif                                  
+ 127   3                      }
+ 128   2      
+ 129   2                      rec_one_frame_ok = 0;
+ 130   2              }
+ 131   1              //-----------------------------------------------
+ 132   1              
+ 133   1              if(modbus_rec_data_valid)//数据校验成功 开始解码
+ 134   1              {
+ 135   2                      modbus_rec_function_code = RX_BUF[1];
+ 136   2      
+ 137   2                      switch(modbus_rec_function_code)
+ 138   2                      {
+ 139   3                              case Read_Holding_Registers://0x03
+ 140   3      
+ 141   3                                      modbus_rec_rw_base = (RX_BUF[2]<<8)+RX_BUF[3];
+ 142   3      
+ 143   3                                      feedback_read_reg(((RX_BUF[4]<<8)+RX_BUF[5]),modbus_rec_rw_base);
+ 144   3      
+ 145   3                              break;
+ 146   3      
+ 147   3                              case Write_Single_Register://0x06
+ 148   3      
+ 149   3                                      modbus_rec_rw_base = (RX_BUF[2]<<8)+RX_BUF[3];//获取将要写入的寄存器地址
+ 150   3      
+ 151   3                                      if((modbus_rec_rw_base>=0)&&(modbus_rec_rw_base<=15))//防止数组越界造成单片机复位
+ 152   3                                      {
+ 153   4                                              modbus_reg[modbus_rec_rw_base] = ((RX_BUF[4]<<8)+RX_BUF[5]);//将数据写入
+ 154   4      
+ 155   4                                              feedback_write_reg();
+ 156   4                                      }
+ 157   3                                      
+ 158   3                              break;
+ 159   3      
+ 160   3                              default:
+ 161   3                              break;
+ 162   3                      }
+ 163   2                      modbus_rec_data_valid = 0;
+ 164   2      
+ 165   2                      #ifdef RS485
+ 166   2                              DIR485 = 0;//转为接收状态
+ 167   2                              delay_for_dir485(50);//转为发送状态切换时间     
+ 168   2                      #endif          
+ 169   2      
+ 170   2      
+ 171   2              }
+ 172   1              //-----------------------------------------------
+ 173   1      
+ 174   1      }
+ 175          void feedback_write_reg(void)//向上位机反馈写寄存器命令
+ 176          {                               
+ 177   1              unsigned char i;
+ 178   1      
+ 179   1              uart_send_char(':');
+C51 COMPILER V8.02   MODBUS_SLAVE                                                          05/27/2013 10:51:12 PAGE 4   
+
+ 180   1      
+ 181   1              for(i=0;i<modbus_rec_count;i++)
+ 182   1              {
+ 183   2                      uart_send_char(hex_to_ascii(RX_BUF[i],1));
+ 184   2                      uart_send_char(hex_to_ascii(RX_BUF[i],0));
+ 185   2      
+ 186   2              }
+ 187   1              uart_send_char(0x0d);
+ 188   1              uart_send_char(0x0a);
+ 189   1      }
+ 190          void feedback_read_reg(unsigned int reg_num,unsigned int reg_base)//读取的数据的数量 基址偏移
+ 191          {
+ 192   1              unsigned char send_lrc_check = 0;
+ 193   1              unsigned char i = 0;
+ 194   1              uart_send_char(':');
+ 195   1      
+ 196   1              if(RX_BUF[0]==HOST_ID)//主机ID
+ 197   1              {
+ 198   2                      uart_send_char(hex_to_ascii(HOST_ID,1));
+ 199   2                      uart_send_char(hex_to_ascii(HOST_ID,0));                
+ 200   2              }
+ 201   1              else
+ 202   1              {
+ 203   2                      uart_send_char(hex_to_ascii(Broadcast_Add,1));
+ 204   2                      uart_send_char(hex_to_ascii(Broadcast_Add,0));                  
+ 205   2              }
+ 206   1      
+ 207   1              //功能码
+ 208   1              uart_send_char(hex_to_ascii(Read_Holding_Registers,1));
+ 209   1              uart_send_char(hex_to_ascii(Read_Holding_Registers,0));
+ 210   1      
+ 211   1              //发送数据数量--字节数
+ 212   1              uart_send_char(hex_to_ascii((2*reg_num),1)); //2个字节
+ 213   1              uart_send_char(hex_to_ascii((2*reg_num),0));
+ 214   1      
+ 215   1      
+ 216   1              for(i=0;i<reg_num;i++)
+ 217   1                 {
+ 218   2                              uart_send_char(hex_to_ascii((modbus_reg[reg_base+i]>>8),1));
+ 219   2                              uart_send_char(hex_to_ascii((modbus_reg[reg_base+i]>>8),0));
+ 220   2                              uart_send_char(hex_to_ascii(modbus_reg[reg_base+i],1));
+ 221   2                              uart_send_char(hex_to_ascii(modbus_reg[reg_base+i],0));
+ 222   2                              send_lrc_check = send_lrc_check+(modbus_reg[reg_base+i]>>8)+modbus_reg[reg_base+i];     
+ 223   2                 }
+ 224   1      
+ 225   1              if(RX_BUF[0]==HOST_ID)//主机ID
+ 226   1              {
+ 227   2                      send_lrc_check =send_lrc_check+HOST_ID+Read_Holding_Registers+2*reg_num;                
+ 228   2              }
+ 229   1              else
+ 230   1              {
+ 231   2                      send_lrc_check =send_lrc_check+Broadcast_Add+Read_Holding_Registers+2*reg_num;                  
+ 232   2              }               
+ 233   1              send_lrc_check =  ~(send_lrc_check)+1;
+ 234   1      
+ 235   1              uart_send_char(hex_to_ascii(send_lrc_check,1));
+ 236   1              uart_send_char(hex_to_ascii(send_lrc_check,0));
+ 237   1      
+ 238   1              //回车 换行
+ 239   1              uart_send_char(0x0d);
+ 240   1              uart_send_char(0x0a);
+ 241   1      }
+C51 COMPILER V8.02   MODBUS_SLAVE                                                          05/27/2013 10:51:12 PAGE 5   
+
+ 242          unsigned char hex_to_ascii(unsigned char hex_data,unsigned char hign_low)
+ 243          {
+ 244   1              unsigned char temp_data;
+ 245   1              if(hign_low==0)//转化低位为ascii
+ 246   1              {
+ 247   2                      temp_data = hex_data&0x0f;
+ 248   2                      if(temp_data>=0&&temp_data<=9)
+ 249   2                      {
+ 250   3                              temp_data = temp_data+0x30;     
+ 251   3      
+ 252   3                      }
+ 253   2                      else
+ 254   2                      {
+ 255   3                              temp_data = temp_data + 0x37;
+ 256   3                      }
+ 257   2              }
+ 258   1              else
+ 259   1              {
+ 260   2                       temp_data = hex_data>>4;
+ 261   2                      if(temp_data>=0&&temp_data<=9)
+ 262   2                      {
+ 263   3                              temp_data = temp_data+0x30;     
+ 264   3                      }
+ 265   2                      else
+ 266   2                      {
+ 267   3                              temp_data = temp_data + 0x37;
+ 268   3                      }
+ 269   2              }
+ 270   1              return temp_data;       
+ 271   1      }
+ 272          unsigned char ascii_to_hex(unsigned char ascii_data)//'f' -->0x0f '8'-->0x08
+ 273          {
+ 274   1              unsigned char hex_data = 0;
+ 275   1              if((ascii_data>='0')&&(ascii_data<='9'))
+ 276   1              {
+ 277   2                      hex_data = ascii_data - 0x30;
+ 278   2              }
+ 279   1              else
+ 280   1              {
+ 281   2                      hex_data = ascii_data - 0x37;
+ 282   2              }
+ 283   1              
+ 284   1              return hex_data;
+ 285   1      }
+ 286          #ifdef RS485
+ 287                  void delay_for_dir485(unsigned int delay_time)
+ 288                  {
+ 289   1                      while(--delay_time);
+ 290   1              }
+ 291          #endif
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    804    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     81      11
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

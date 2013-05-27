@@ -1,0 +1,45 @@
+<html>
+<body>
+<pre>
+<h1>礦ision3 Build Log</h1>
+<h2>Project:</h2>
+C:\Documents and Settings\Administrator\桌面\电机性能测试\单向异步电机性能测试.uv2
+Project File Date:  08/18/2012
+
+<h2>Output:</h2>
+Build target 'Target 1'
+compiling main.c...
+linking...
+*** WARNING L16: UNCALLED SEGMENT, IGNORED FOR OVERLAY PROCESS
+    SEGMENT: ?PR?_CLEAR_SOFT_TIMER?SOFT_TIMER
+Program Size: data=112.0 xdata=0 code=1567
+creating hex file from "单向异步电机pwm调速"...
+"单向异步电机pwm调速" - 0 Error(s), 1 Warning(s).
+Build target 'Target 1'
+linking...
+*** WARNING L16: UNCALLED SEGMENT, IGNORED FOR OVERLAY PROCESS
+    SEGMENT: ?PR?_CLEAR_SOFT_TIMER?SOFT_TIMER
+Program Size: data=112.0 xdata=0 code=1567
+creating hex file from "单向异步电机pwm调速"...
+"单向异步电机pwm调速" - 0 Error(s), 1 Warning(s).
+Build target 'Target 1'
+linking...
+*** WARNING L16: UNCALLED SEGMENT, IGNORED FOR OVERLAY PROCESS
+    SEGMENT: ?PR?_CLEAR_SOFT_TIMER?SOFT_TIMER
+Program Size: data=112.0 xdata=0 code=1567
+creating hex file from "单向异步电机pwm调速"...
+"单向异步电机pwm调速" - 0 Error(s), 1 Warning(s).
+Build target 'Target 1'
+linking...
+*** WARNING L16: UNCALLED SEGMENT, IGNORED FOR OVERLAY PROCESS
+    SEGMENT: ?PR?_CLEAR_SOFT_TIMER?SOFT_TIMER
+Program Size: data=112.0 xdata=0 code=1567
+creating hex file from "单向异步电机pwm调速"...
+"单向异步电机pwm调速" - 0 Error(s), 1 Warning(s).
+Build target 'Target 1'
+linking...
+*** WARNING L16: UNCALLED SEGMENT, IGNORED FOR OVERLAY PROCESS
+    SEGMENT: ?PR?_CLEAR_SOFT_TIMER?SOFT_TIMER
+Program Size: data=112.0 xdata=0 code=1567
+creating hex file from "单向异步电机pwm调速"...
+"单向异步电机pwm调速" - 0 Error(s), 1 Warning(s).
