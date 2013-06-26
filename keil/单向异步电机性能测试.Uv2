@@ -7,9 +7,6 @@ Group (Source Group 1)
 
 File 1,2,<.\STARTUP.A51><STARTUP.A51> 0x0 
 File 1,1,<.\main.c><main.c> 0x0 
-File 1,1,<.\modbus_slave.c><modbus_slave.c> 0x0 
-File 1,1,<.\uart.c><uart.c> 0x0 
-File 1,1,<.\soft_timer.c><soft_timer.c> 0x0 
 
 
 Options 1,0,0  // Target 'Target 1'

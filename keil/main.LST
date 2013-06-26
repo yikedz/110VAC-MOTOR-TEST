@@ -1,4 +1,4 @@
-C51 COMPILER V8.02   MAIN                                                                  05/27/2013 12:42:00 PAGE 1   
+C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 1   
 
 
 C51 COMPILER V8.02, COMPILATION OF MODULE MAIN
@@ -8,216 +8,296 @@ COMPILER INVOKED BY: e:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
 line level    source
 
    1          /*
-   2                  单向异步电机pwm调速 
-   3                  mcu：stc89c52
-   4                  电脑控制
-   5          */
-   6          #include<reg51.h>
-   7          #include "modbus_slave.h"
-   8          #include"uart.h"
-   9          #include "soft_timer.h"
-  10          
-  11          #define ON 0
-  12          #define OFF 1
-  13          
-  14          
-  15          sbit FZ = P2^7;
-  16          sbit ZZ = P2^4; 
-  17          
-  18          static unsigned char started_flg = 0;
-  19          
-  20          static unsigned char step = 1;                                   
-  21                                                                  
-  22          unsigned char time_getter[4];//电机运行时间数组 0--正转时间 1 停止时间1  2反转时间 3停止时间2
-  23          
-  24          void init_timer0(void);
-  25          
-  26          void run_motor(void);
-  27          
-  28          void main(void)
-  29          {
-  30   1              FZ = OFF;
-  31   1              ZZ = OFF;
-  32   1      
-  33   1      
-  34   1              //电机运行时间初始值
-  35   1              time_getter[0] = 45;//正转
-  36   1      
-  37   1              time_getter[1] = 1; //停止时间1
-  38   1      
-  39   1              time_getter[2] = 4; //反转
-  40   1      
-  41   1              time_getter[3] = 65;//停止时间2
-  42   1      
-  43   1              init_uart();
-  44   1      
-  45   1              init_timer0();
-  46   1      
-  47   1      
-  48   1               modbus_reg[0] = 45;
-  49   1               modbus_reg[1] = 1;
-  50   1               modbus_reg[2]  = 4;
-  51   1               modbus_reg[3] = 65;
-  52   1      
-  53   1               modbus_reg[4]  = 1;//启动
-  54   1      
-  55   1               modbus_reg[5]  = 1;//动作状态步
-C51 COMPILER V8.02   MAIN                                                                  05/27/2013 12:42:00 PAGE 2   
+   2                  mcu：stc89c52
+   3          */
+   4          #include<reg51.h>
+   5          
+   6          #define ON 0
+   7          #define OFF 1
+   8          sbit key = P1^5;
+   9          sbit sensor1 = P1^6;
+  10          sbit sensor2 = P1^7;
+  11          
+  12          sbit FZ = P2^7;
+  13          sbit ZZ = P2^4; 
+  14                                   
+  15          
+  16          unsigned char key_pressed = 0;//保存按键按下
+  17          unsigned char sensor1_flg = 0;//保存sensor1信号状态 
+  18          unsigned char sensor2_flg = 0;//保存sensor1信号状态
+  19          unsigned char  flg_10ms = 0;
+  20          
+  21          void init_timer0(void);
+  22          void get_io_status(void);//获取io状态
+  23          void system_handle(void);
+  24          
+  25          void main(void)
+  26          {
+  27   1              FZ = OFF;
+  28   1              ZZ = OFF;
+  29   1              init_timer0();
+  30   1              EA = 1;
+  31   1              while(1)
+  32   1              {
+  33   2                      if(flg_10ms)
+  34   2                      {
+  35   3                              flg_10ms = 0;
+  36   3                              get_io_status();
+  37   3                      }
+  38   2                      
+  39   2                      system_handle();
+  40   2              }
+  41   1              
+  42   1      }       
+  43          void init_timer0(void)
+  44          {
+  45   1              TMOD |=0x01 ;//定时器0工作在方式一
+  46   1              TH0 = 0xdc;//11.0592
+  47   1              TL0 = 0x00;
+  48   1      
+  49   1              ET0 = 1;  //使能定时器0中断
+  50   1              TR0 =1;  //启动定时器0
+  51   1      
+  52   1      }
+  53          
+  54          void timer0_isr(void) interrupt 1
+  55          {
+C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 2   
 
   56   1      
-  57   1               modbus_reg[6] = 1;//电机运行标志
-  58   1      
-  59   1               modbus_reg[7] = 0;//循环次数
-  60   1      
-  61   1      
-  62   1              EA = 1;
-  63   1              
-  64   1              while(1)
-  65   1              {
-  66   2                      if( modbus_reg[4]==1)
-  67   2                      {
-  68   3                              run_motor();
-  69   3                              modbus_reg[5] = step;   
-  70   3                      }
-  71   2                      else
-  72   2                      {
-  73   3                              //停止的时候可以设置时间
-  74   3                              time_getter[0] = modbus_reg[0];
-  75   3                              time_getter[1] = modbus_reg[1];
-  76   3                              time_getter[2] = modbus_reg[2];
-  77   3                              time_getter[3] = modbus_reg[3];
-  78   3                              modbus_reg[5] = 0;//动作状态步
-  79   3                              FZ  = 1;
-  80   3                              ZZ = 1;
-  81   3                              started_flg = 0;
-  82   3                              step = 1;
-  83   3                              //modbus_reg[7] = 0;
-  84   3                      }
-  85   2      
-  86   2                      modbus_decode(); 
-  87   2              }
-  88   1      }       
-  89          void init_timer0(void)
-  90          {
-  91   1              TMOD |=0x01 ;//定时器0工作在方式一
-  92   1              TH0 = 0xdc;//11.0592
-  93   1              TL0 = 0x00;
-  94   1      
-  95   1              ET0 = 1;  //使能定时器0中断
-  96   1              TR0 =1;  //启动定时器0
-  97   1      
-  98   1      }
-  99          
- 100          void timer0_isr(void) interrupt 1
- 101          {
- 102   1      
- 103   1              TH0 = 0xdc;//11.0592
- 104   1              TL0 = 0x00;
- 105   1      
- 106   1              update_all_timers();
- 107   1      
- 108   1      }
- 109          
- 110          void run_motor(void)
- 111          {
- 112   1      
- 113   1      
- 114   1              switch(step)
- 115   1              {
- 116   2                      case 1:
- 117   2                      modbus_reg[6] = 1;      
-C51 COMPILER V8.02   MAIN                                                                  05/27/2013 12:42:00 PAGE 3   
+  57   1              TH0 = 0xdc;//11.0592
+  58   1              TL0 = 0x00;
+  59   1      
+  60   1          flg_10ms = 1;
+  61   1              //update_all_timers();
+  62   1      
+  63   1      }
+  64          void get_io_status(void)//获取io状态
+  65          {
+  66   1      static unsigned char key_state = 1;
+  67   1      static unsigned char key_pressed_count = 0;
+  68   1      static unsigned char key_release_count = 0;
+  69   1      
+  70   1      static unsigned char sensor1_state = 1;
+  71   1      static unsigned char sensor1_pressed_count = 0;
+  72   1      static unsigned char sensor1_release_count = 0;
+  73   1      
+  74   1      static unsigned char sensor2_state = 1;
+  75   1      static unsigned char sensor2_pressed_count = 0;
+  76   1      static unsigned char sensor2_release_count = 0;
+  77   1       
+  78   1      //key button =================================
+  79   1              switch(key_state)
+  80   1              {
+  81   2                      case 1://检查低电平
+  82   2                              key = 1;
+  83   2                              if(key==0)//按键按下
+  84   2                              {
+  85   3                                      key_pressed_count++;
+  86   3                                      if(key_pressed_count==10)
+  87   3                                      {
+  88   4                                              key_pressed = 1;
+  89   4                                              key_pressed_count = 0;
+  90   4                                      }       
+  91   3                              }
+  92   2                              else
+  93   2                              {
+  94   3                                      key_state = 2;
+  95   3                                      key_pressed_count = 0;
+  96   3                                      key_release_count = 0;
+  97   3              
+  98   3                              }       
+  99   2                      break;
+ 100   2                      case 2:
+ 101   2                              key = 1;
+ 102   2                              if(key)//按键按下
+ 103   2                              {
+ 104   3                                      key_release_count++;
+ 105   3                                      if(key_release_count==10)
+ 106   3                                      {
+ 107   4                                              key_pressed = 0;
+ 108   4                                              key_release_count = 0;
+ 109   4                                      }       
+ 110   3                              }
+ 111   2                              else
+ 112   2                              {
+ 113   3                                      key_state = 1;
+ 114   3                                      key_pressed_count = 0;
+ 115   3                                      key_release_count = 0;
+ 116   3              
+ 117   3                              }
+C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 3   
 
- 118   2                      
- 119   2                      if(started_flg==0)
- 120   2                      {
- 121   3                              start_soft_timer(SOFT_TIMER0,time_getter[0]*100);
- 122   3                              ZZ = 0;//电机正转
- 123   3                              started_flg = 1;                         
- 124   3                      }
- 125   2                      else
- 126   2                      {
- 127   3                              if(check_soft_timer(SOFT_TIMER0))
- 128   3                              {
- 129   4                                      step = 2;
- 130   4                                      started_flg = 0;                
- 131   4                              }       
- 132   3                      }
- 133   2                      break;
- 134   2                      case 2:
- 135   2                      modbus_reg[6] = 0;      
- 136   2                      if(started_flg==0)
- 137   2                      {
- 138   3                              start_soft_timer(SOFT_TIMER0,time_getter[1]*100);
- 139   3                              ZZ = 1;//电机停止时间1
- 140   3                              started_flg = 1;        
- 141   3                      }
- 142   2                      else
- 143   2              
- 144   2                      {
- 145   3                              if(check_soft_timer(SOFT_TIMER0))
- 146   3                              {
- 147   4                                      step = 3;
- 148   4                                      started_flg = 0;                
- 149   4                              }       
- 150   3                      }
- 151   2                      break;
- 152   2                      case 3:
- 153   2                      modbus_reg[6] = 1;      
- 154   2                      if(started_flg==0)
- 155   2                      {
- 156   3                              start_soft_timer(SOFT_TIMER0,time_getter[2]*100);
- 157   3                              FZ = 0;//电机反转
- 158   3                              started_flg = 1;        
- 159   3                      }
- 160   2                      else
- 161   2                      {
- 162   3                              if(check_soft_timer(SOFT_TIMER0))
- 163   3                              {
- 164   4                                      step = 4;
- 165   4                                      started_flg = 0;                
- 166   4                              }       
- 167   3                      }
- 168   2                      break;
- 169   2                      case 4:
- 170   2                      modbus_reg[6] = 0;      
- 171   2                      if(started_flg==0)
- 172   2                      {
- 173   3                              start_soft_timer(SOFT_TIMER0,time_getter[3]*100);
- 174   3                              FZ = 1;//电机停止时间2
- 175   3                              started_flg = 1;        
- 176   3                      }
- 177   2                      else
- 178   2                      {
- 179   3                              if(check_soft_timer(SOFT_TIMER0))
-C51 COMPILER V8.02   MAIN                                                                  05/27/2013 12:42:00 PAGE 4   
+ 118   2                      break;
+ 119   2                      default:
+ 120   2                              key_state = 1;
+ 121   2                      break;  
+ 122   2              }
+ 123   1      //key button =================================
+ 124   1      
+ 125   1      //sensor1=====================================
+ 126   1              switch(sensor1_state)
+ 127   1              {
+ 128   2                      case 1:
+ 129   2                              sensor1 =1;
+ 130   2                              if(sensor1==0)//低电平信号有效
+ 131   2                              {
+ 132   3                                      sensor1_pressed_count++;
+ 133   3                                      if(sensor1_pressed_count==5)
+ 134   3                                      {
+ 135   4                                              sensor1_flg = 1;
+ 136   4                                              sensor1_pressed_count = 0;      
+ 137   4                                      }
+ 138   3                              }
+ 139   2                              else
+ 140   2                              {
+ 141   3                                      sensor1_state = 2;
+ 142   3                                      sensor1_pressed_count = 0;      
+ 143   3                                      sensor1_release_count = 0;      
+ 144   3                              }
+ 145   2                      break;
+ 146   2                      case 2:
+ 147   2                              sensor1 =1;
+ 148   2                              if(sensor1)
+ 149   2                              {
+ 150   3                                      sensor1_release_count++;
+ 151   3                                      if(sensor1_release_count==5)
+ 152   3                                      {
+ 153   4                                              sensor1_flg = 0;
+ 154   4                                              sensor1_release_count = 0;      
+ 155   4                                      }
+ 156   3                              }
+ 157   2                              else
+ 158   2                              {
+ 159   3                                      sensor1_state = 1;
+ 160   3                                      sensor1_pressed_count = 0;      
+ 161   3                                      sensor1_release_count = 0;                              
+ 162   3                              }
+ 163   2                      break;
+ 164   2                      default:
+ 165   2                              sensor1_state = 1;
+ 166   2                      break;
+ 167   2              }
+ 168   1      //sensor1=====================================
+ 169   1      
+ 170   1      //sensor2=====================================
+ 171   1              switch(sensor2_state)
+ 172   1              {
+ 173   2                      case 1:
+ 174   2                              sensor2 =1;
+ 175   2                              if(sensor2==0)//低电平信号有效
+ 176   2                              {
+ 177   3                                      sensor2_pressed_count++;
+ 178   3                                      if(sensor2_pressed_count==5)
+ 179   3                                      {
+C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 4   
 
- 180   3                              {
- 181   4                                      step = 1;
- 182   4                                      started_flg = 0;        
- 183   4                                      modbus_reg[7]++;        
- 184   4                              }       
- 185   3                      }
- 186   2                      break;
- 187   2                      default:
- 188   2                              step = 1;
- 189   2                              started_flg = 0;
- 190   2                      break;  
- 191   2              }
- 192   1      }
- 193          
- 194          
- 195          
- 196          
- 197          
+ 180   4                                              sensor2_flg = 1;
+ 181   4                                              sensor2_pressed_count = 0;      
+ 182   4                                      }
+ 183   3                              }
+ 184   2                              else
+ 185   2                              {
+ 186   3                                      sensor2_state = 2;
+ 187   3                                      sensor2_pressed_count = 0;      
+ 188   3                                      sensor2_release_count = 0;      
+ 189   3                              }
+ 190   2                      break;
+ 191   2                      case 2:
+ 192   2                              sensor2 =1;
+ 193   2                              if(sensor2)
+ 194   2                              {
+ 195   3                                      sensor2_release_count++;
+ 196   3                                      if(sensor2_release_count==5)
+ 197   3                                      {
+ 198   4                                              sensor2_flg = 0;
+ 199   4                                              sensor2_release_count = 0;      
+ 200   4                                      }
+ 201   3                              }
+ 202   2                              else
+ 203   2                              {
+ 204   3                                      sensor2_state = 1;
+ 205   3                                      sensor2_pressed_count = 0;      
+ 206   3                                      sensor2_release_count = 0;                              
+ 207   3                              }
+ 208   2                      break;
+ 209   2                      default:
+ 210   2                              sensor2_state = 1;
+ 211   2                      break;
+ 212   2              }
+ 213   1      //sensor2=====================================  
+ 214   1      }
+ 215          
+ 216          void system_handle(void)
+ 217          {
+ 218   1              static unsigned char key_system_state = 1;
+ 219   1              static unsigned char pos = 1;
+ 220   1              static unsigned char  en_motor_run = 0;
+ 221   1              switch(key_system_state)
+ 222   1              {
+ 223   2                      case 1://等待按键按下
+ 224   2                              if(key_pressed)//按键按下了
+ 225   2                              {
+ 226   3                                      key_system_state = 2;
+ 227   3                              }               
+ 228   2                      break;
+ 229   2                      case 2:
+ 230   2                              if(key_pressed==0)//等待按键松开
+ 231   2                              {
+ 232   3                                      en_motor_run = 1;
+ 233   3                                      key_system_state = 1;
+ 234   3                              }
+ 235   2                      break;
+ 236   2                      default:
+ 237   2                              key_system_state = 1;   
+ 238   2                      break;
+ 239   2                      
+ 240   2              }
+ 241   1              if(en_motor_run)//允许电机转动
+C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 5   
+
+ 242   1              {
+ 243   2                      switch(pos)
+ 244   2                      {
+ 245   3                              case 1://此时默认电机停止在传感器sensor1位置处 正转到sensor2处
+ 246   3                                      ZZ = ON;//电机开始正转
+ 247   3                                      if(sensor1_flg)//正转到sensor2处
+ 248   3                                      {
+ 249   4                                              ZZ = OFF;//正转停止
+ 250   4                                              en_motor_run = 0;
+ 251   4                                              pos = 2;
+ 252   4                                      }
+ 253   3                              break;
+ 254   3                              case 2://此时默认电机停止在传感器sensor2位置处 反转到sensor1处
+ 255   3                                      FZ = ON;//电机开始反转
+ 256   3                                      if(sensor2_flg)//反转到sensor1处
+ 257   3                                      {
+ 258   4                                              FZ = OFF;//反转停止
+ 259   4                                              en_motor_run = 0;
+ 260   4                                              pos = 1;
+ 261   4                                      }                       
+ 262   3                              break;
+ 263   3                              default:
+ 264   3                                      pos = 1;                        
+ 265   3                              break;
+ 266   3                      }               
+ 267   2              }
+ 268   1      
+ 269   1      }
+ 270          
+ 271          
+ 272          
+ 273          
+ 274          
+ 275          
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    407    ----
+   CODE SIZE        =    319    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =   ----    ----
    PDATA SIZE       =   ----    ----
-   DATA SIZE        =      6    ----
+   DATA SIZE        =     16    ----
    IDATA SIZE       =   ----    ----
    BIT SIZE         =   ----    ----
 END OF MODULE INFORMATION.
