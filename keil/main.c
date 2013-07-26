@@ -11,7 +11,18 @@ sbit sensor2 = P1^7;
 
 sbit FZ = P2^7;
 sbit ZZ = P2^4;	
-			 
+
+bit zz_time_flg = 0;
+
+bit fz_time_flg = 0;
+
+bit zz_time_start = 0;
+
+bit fz_time_start = 0;	
+
+unsigned char zz_time_count = 0;
+unsigned char fz_time_count = 0;
+		 
 
 unsigned char key_pressed = 0;//保存按键按下
 unsigned char sensor1_flg = 0;//保存sensor1信号状态 
@@ -34,6 +45,27 @@ void main(void)
 		{
 			flg_10ms = 0;
 			get_io_status();
+
+			if(zz_time_start)
+			{
+				zz_time_count++;
+				if(zz_time_count==100)
+				{
+					 zz_time_start = 0;
+					 zz_time_count = 0;
+					 zz_time_flg = 1;
+				}
+			}
+			if(fz_time_start)
+			{
+				fz_time_count++;
+				if(fz_time_count==100)
+				{
+					 fz_time_start = 0;
+					 fz_time_count = 0;
+					 fz_time_flg = 1;
+				}
+			}
 		}
 		
 		system_handle();
@@ -229,6 +261,8 @@ void system_handle(void)
 		case 2:
 			if(key_pressed==0)//等待按键松开
 			{
+				zz_time_flg = 0;
+				fz_time_flg = 0;
 				en_motor_run = 1;
 				key_system_state = 1;
 			}
@@ -238,13 +272,20 @@ void system_handle(void)
 		break;
 		
 	}
+
+
 	if(en_motor_run)//允许电机转动
 	{
 		switch(pos)
 		{
 			case 1://此时默认电机停止在传感器sensor1位置处 正转到sensor2处
 				ZZ = ON;//电机开始正转
-				if(sensor1_flg)//正转到sensor2处
+				zz_time_start = 1;
+				if(zz_time_flg)
+				{
+					zz_time_start = 0;	
+				}
+				if(sensor1_flg||zz_time_flg)//正转到sensor2处
 				{
 					ZZ = OFF;//正转停止
 					en_motor_run = 0;
@@ -253,7 +294,12 @@ void system_handle(void)
 			break;
 			case 2://此时默认电机停止在传感器sensor2位置处 反转到sensor1处
 				FZ = ON;//电机开始反转
-				if(sensor2_flg)//反转到sensor1处
+				fz_time_start = 1;
+				if(fz_time_flg)
+				{
+					fz_time_start = 0;	
+				}
+				if(sensor2_flg||fz_time_flg)//反转到sensor1处
 				{
 					FZ = OFF;//反转停止
 					en_motor_run = 0;

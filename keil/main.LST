@@ -1,4 +1,4 @@
-C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 1   
+C51 COMPILER V8.02   MAIN                                                                  07/22/2013 10:33:54 PAGE 1   
 
 
 C51 COMPILER V8.02, COMPILATION OF MODULE MAIN
@@ -20,286 +20,334 @@ line level    source
   11          
   12          sbit FZ = P2^7;
   13          sbit ZZ = P2^4; 
-  14                                   
-  15          
-  16          unsigned char key_pressed = 0;//保存按键按下
-  17          unsigned char sensor1_flg = 0;//保存sensor1信号状态 
-  18          unsigned char sensor2_flg = 0;//保存sensor1信号状态
-  19          unsigned char  flg_10ms = 0;
+  14          
+  15          bit zz_time_flg = 0;
+  16          
+  17          bit fz_time_flg = 0;
+  18          
+  19          bit zz_time_start = 0;
   20          
-  21          void init_timer0(void);
-  22          void get_io_status(void);//获取io状态
-  23          void system_handle(void);
-  24          
-  25          void main(void)
-  26          {
-  27   1              FZ = OFF;
-  28   1              ZZ = OFF;
-  29   1              init_timer0();
-  30   1              EA = 1;
-  31   1              while(1)
-  32   1              {
-  33   2                      if(flg_10ms)
-  34   2                      {
-  35   3                              flg_10ms = 0;
-  36   3                              get_io_status();
-  37   3                      }
-  38   2                      
-  39   2                      system_handle();
-  40   2              }
-  41   1              
-  42   1      }       
-  43          void init_timer0(void)
-  44          {
-  45   1              TMOD |=0x01 ;//定时器0工作在方式一
-  46   1              TH0 = 0xdc;//11.0592
-  47   1              TL0 = 0x00;
-  48   1      
-  49   1              ET0 = 1;  //使能定时器0中断
-  50   1              TR0 =1;  //启动定时器0
-  51   1      
-  52   1      }
-  53          
-  54          void timer0_isr(void) interrupt 1
-  55          {
-C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 2   
+  21          bit fz_time_start = 0;  
+  22          
+  23          unsigned char zz_time_count = 0;
+  24          unsigned char fz_time_count = 0;
+  25                           
+  26          
+  27          unsigned char key_pressed = 0;//保存按键按下
+  28          unsigned char sensor1_flg = 0;//保存sensor1信号状态 
+  29          unsigned char sensor2_flg = 0;//保存sensor1信号状态
+  30          unsigned char  flg_10ms = 0;
+  31          
+  32          void init_timer0(void);
+  33          void get_io_status(void);//获取io状态
+  34          void system_handle(void);
+  35          
+  36          void main(void)
+  37          {
+  38   1              FZ = OFF;
+  39   1              ZZ = OFF;
+  40   1              init_timer0();
+  41   1              EA = 1;
+  42   1              while(1)
+  43   1              {
+  44   2                      if(flg_10ms)
+  45   2                      {
+  46   3                              flg_10ms = 0;
+  47   3                              get_io_status();
+  48   3      
+  49   3                              if(zz_time_start)
+  50   3                              {
+  51   4                                      zz_time_count++;
+  52   4                                      if(zz_time_count==100)
+  53   4                                      {
+  54   5                                               zz_time_start = 0;
+  55   5                                               zz_time_count = 0;
+C51 COMPILER V8.02   MAIN                                                                  07/22/2013 10:33:54 PAGE 2   
 
-  56   1      
-  57   1              TH0 = 0xdc;//11.0592
-  58   1              TL0 = 0x00;
-  59   1      
-  60   1          flg_10ms = 1;
-  61   1              //update_all_timers();
-  62   1      
-  63   1      }
-  64          void get_io_status(void)//获取io状态
-  65          {
-  66   1      static unsigned char key_state = 1;
-  67   1      static unsigned char key_pressed_count = 0;
-  68   1      static unsigned char key_release_count = 0;
-  69   1      
-  70   1      static unsigned char sensor1_state = 1;
-  71   1      static unsigned char sensor1_pressed_count = 0;
-  72   1      static unsigned char sensor1_release_count = 0;
-  73   1      
-  74   1      static unsigned char sensor2_state = 1;
-  75   1      static unsigned char sensor2_pressed_count = 0;
-  76   1      static unsigned char sensor2_release_count = 0;
-  77   1       
-  78   1      //key button =================================
-  79   1              switch(key_state)
-  80   1              {
-  81   2                      case 1://检查低电平
-  82   2                              key = 1;
-  83   2                              if(key==0)//按键按下
-  84   2                              {
-  85   3                                      key_pressed_count++;
-  86   3                                      if(key_pressed_count==10)
-  87   3                                      {
-  88   4                                              key_pressed = 1;
-  89   4                                              key_pressed_count = 0;
-  90   4                                      }       
-  91   3                              }
-  92   2                              else
-  93   2                              {
-  94   3                                      key_state = 2;
-  95   3                                      key_pressed_count = 0;
-  96   3                                      key_release_count = 0;
-  97   3              
-  98   3                              }       
-  99   2                      break;
- 100   2                      case 2:
- 101   2                              key = 1;
- 102   2                              if(key)//按键按下
- 103   2                              {
- 104   3                                      key_release_count++;
- 105   3                                      if(key_release_count==10)
- 106   3                                      {
- 107   4                                              key_pressed = 0;
- 108   4                                              key_release_count = 0;
- 109   4                                      }       
- 110   3                              }
- 111   2                              else
- 112   2                              {
- 113   3                                      key_state = 1;
- 114   3                                      key_pressed_count = 0;
- 115   3                                      key_release_count = 0;
- 116   3              
- 117   3                              }
-C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 3   
+  56   5                                               zz_time_flg = 1;
+  57   5                                      }
+  58   4                              }
+  59   3                              if(fz_time_start)
+  60   3                              {
+  61   4                                      fz_time_count++;
+  62   4                                      if(fz_time_count==100)
+  63   4                                      {
+  64   5                                               fz_time_start = 0;
+  65   5                                               fz_time_count = 0;
+  66   5                                               fz_time_flg = 1;
+  67   5                                      }
+  68   4                              }
+  69   3                      }
+  70   2                      
+  71   2                      system_handle();
+  72   2              }
+  73   1              
+  74   1      }       
+  75          void init_timer0(void)
+  76          {
+  77   1              TMOD |=0x01 ;//定时器0工作在方式一
+  78   1              TH0 = 0xdc;//11.0592
+  79   1              TL0 = 0x00;
+  80   1      
+  81   1              ET0 = 1;  //使能定时器0中断
+  82   1              TR0 =1;  //启动定时器0
+  83   1      
+  84   1      }
+  85          
+  86          void timer0_isr(void) interrupt 1
+  87          {
+  88   1      
+  89   1              TH0 = 0xdc;//11.0592
+  90   1              TL0 = 0x00;
+  91   1      
+  92   1          flg_10ms = 1;
+  93   1              //update_all_timers();
+  94   1      
+  95   1      }
+  96          void get_io_status(void)//获取io状态
+  97          {
+  98   1      static unsigned char key_state = 1;
+  99   1      static unsigned char key_pressed_count = 0;
+ 100   1      static unsigned char key_release_count = 0;
+ 101   1      
+ 102   1      static unsigned char sensor1_state = 1;
+ 103   1      static unsigned char sensor1_pressed_count = 0;
+ 104   1      static unsigned char sensor1_release_count = 0;
+ 105   1      
+ 106   1      static unsigned char sensor2_state = 1;
+ 107   1      static unsigned char sensor2_pressed_count = 0;
+ 108   1      static unsigned char sensor2_release_count = 0;
+ 109   1       
+ 110   1      //key button =================================
+ 111   1              switch(key_state)
+ 112   1              {
+ 113   2                      case 1://检查低电平
+ 114   2                              key = 1;
+ 115   2                              if(key==0)//按键按下
+ 116   2                              {
+ 117   3                                      key_pressed_count++;
+C51 COMPILER V8.02   MAIN                                                                  07/22/2013 10:33:54 PAGE 3   
 
- 118   2                      break;
- 119   2                      default:
- 120   2                              key_state = 1;
- 121   2                      break;  
- 122   2              }
- 123   1      //key button =================================
- 124   1      
- 125   1      //sensor1=====================================
- 126   1              switch(sensor1_state)
- 127   1              {
- 128   2                      case 1:
- 129   2                              sensor1 =1;
- 130   2                              if(sensor1==0)//低电平信号有效
- 131   2                              {
- 132   3                                      sensor1_pressed_count++;
- 133   3                                      if(sensor1_pressed_count==5)
- 134   3                                      {
- 135   4                                              sensor1_flg = 1;
- 136   4                                              sensor1_pressed_count = 0;      
- 137   4                                      }
- 138   3                              }
- 139   2                              else
- 140   2                              {
- 141   3                                      sensor1_state = 2;
- 142   3                                      sensor1_pressed_count = 0;      
- 143   3                                      sensor1_release_count = 0;      
- 144   3                              }
- 145   2                      break;
- 146   2                      case 2:
- 147   2                              sensor1 =1;
- 148   2                              if(sensor1)
- 149   2                              {
- 150   3                                      sensor1_release_count++;
- 151   3                                      if(sensor1_release_count==5)
- 152   3                                      {
- 153   4                                              sensor1_flg = 0;
- 154   4                                              sensor1_release_count = 0;      
- 155   4                                      }
- 156   3                              }
- 157   2                              else
- 158   2                              {
- 159   3                                      sensor1_state = 1;
- 160   3                                      sensor1_pressed_count = 0;      
- 161   3                                      sensor1_release_count = 0;                              
- 162   3                              }
- 163   2                      break;
- 164   2                      default:
- 165   2                              sensor1_state = 1;
- 166   2                      break;
- 167   2              }
- 168   1      //sensor1=====================================
- 169   1      
- 170   1      //sensor2=====================================
- 171   1              switch(sensor2_state)
- 172   1              {
- 173   2                      case 1:
- 174   2                              sensor2 =1;
- 175   2                              if(sensor2==0)//低电平信号有效
- 176   2                              {
- 177   3                                      sensor2_pressed_count++;
- 178   3                                      if(sensor2_pressed_count==5)
- 179   3                                      {
-C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 4   
+ 118   3                                      if(key_pressed_count==10)
+ 119   3                                      {
+ 120   4                                              key_pressed = 1;
+ 121   4                                              key_pressed_count = 0;
+ 122   4                                      }       
+ 123   3                              }
+ 124   2                              else
+ 125   2                              {
+ 126   3                                      key_state = 2;
+ 127   3                                      key_pressed_count = 0;
+ 128   3                                      key_release_count = 0;
+ 129   3              
+ 130   3                              }       
+ 131   2                      break;
+ 132   2                      case 2:
+ 133   2                              key = 1;
+ 134   2                              if(key)//按键按下
+ 135   2                              {
+ 136   3                                      key_release_count++;
+ 137   3                                      if(key_release_count==10)
+ 138   3                                      {
+ 139   4                                              key_pressed = 0;
+ 140   4                                              key_release_count = 0;
+ 141   4                                      }       
+ 142   3                              }
+ 143   2                              else
+ 144   2                              {
+ 145   3                                      key_state = 1;
+ 146   3                                      key_pressed_count = 0;
+ 147   3                                      key_release_count = 0;
+ 148   3              
+ 149   3                              }
+ 150   2                      break;
+ 151   2                      default:
+ 152   2                              key_state = 1;
+ 153   2                      break;  
+ 154   2              }
+ 155   1      //key button =================================
+ 156   1      
+ 157   1      //sensor1=====================================
+ 158   1              switch(sensor1_state)
+ 159   1              {
+ 160   2                      case 1:
+ 161   2                              sensor1 =1;
+ 162   2                              if(sensor1==0)//低电平信号有效
+ 163   2                              {
+ 164   3                                      sensor1_pressed_count++;
+ 165   3                                      if(sensor1_pressed_count==5)
+ 166   3                                      {
+ 167   4                                              sensor1_flg = 1;
+ 168   4                                              sensor1_pressed_count = 0;      
+ 169   4                                      }
+ 170   3                              }
+ 171   2                              else
+ 172   2                              {
+ 173   3                                      sensor1_state = 2;
+ 174   3                                      sensor1_pressed_count = 0;      
+ 175   3                                      sensor1_release_count = 0;      
+ 176   3                              }
+ 177   2                      break;
+ 178   2                      case 2:
+ 179   2                              sensor1 =1;
+C51 COMPILER V8.02   MAIN                                                                  07/22/2013 10:33:54 PAGE 4   
 
- 180   4                                              sensor2_flg = 1;
- 181   4                                              sensor2_pressed_count = 0;      
- 182   4                                      }
- 183   3                              }
- 184   2                              else
- 185   2                              {
- 186   3                                      sensor2_state = 2;
- 187   3                                      sensor2_pressed_count = 0;      
- 188   3                                      sensor2_release_count = 0;      
- 189   3                              }
- 190   2                      break;
- 191   2                      case 2:
- 192   2                              sensor2 =1;
- 193   2                              if(sensor2)
- 194   2                              {
- 195   3                                      sensor2_release_count++;
- 196   3                                      if(sensor2_release_count==5)
- 197   3                                      {
- 198   4                                              sensor2_flg = 0;
- 199   4                                              sensor2_release_count = 0;      
- 200   4                                      }
- 201   3                              }
- 202   2                              else
- 203   2                              {
- 204   3                                      sensor2_state = 1;
- 205   3                                      sensor2_pressed_count = 0;      
- 206   3                                      sensor2_release_count = 0;                              
- 207   3                              }
- 208   2                      break;
- 209   2                      default:
- 210   2                              sensor2_state = 1;
- 211   2                      break;
- 212   2              }
- 213   1      //sensor2=====================================  
- 214   1      }
- 215          
- 216          void system_handle(void)
- 217          {
- 218   1              static unsigned char key_system_state = 1;
- 219   1              static unsigned char pos = 1;
- 220   1              static unsigned char  en_motor_run = 0;
- 221   1              switch(key_system_state)
- 222   1              {
- 223   2                      case 1://等待按键按下
- 224   2                              if(key_pressed)//按键按下了
- 225   2                              {
- 226   3                                      key_system_state = 2;
- 227   3                              }               
- 228   2                      break;
- 229   2                      case 2:
- 230   2                              if(key_pressed==0)//等待按键松开
- 231   2                              {
- 232   3                                      en_motor_run = 1;
- 233   3                                      key_system_state = 1;
- 234   3                              }
- 235   2                      break;
- 236   2                      default:
- 237   2                              key_system_state = 1;   
- 238   2                      break;
- 239   2                      
- 240   2              }
- 241   1              if(en_motor_run)//允许电机转动
-C51 COMPILER V8.02   MAIN                                                                  06/26/2013 10:43:11 PAGE 5   
+ 180   2                              if(sensor1)
+ 181   2                              {
+ 182   3                                      sensor1_release_count++;
+ 183   3                                      if(sensor1_release_count==5)
+ 184   3                                      {
+ 185   4                                              sensor1_flg = 0;
+ 186   4                                              sensor1_release_count = 0;      
+ 187   4                                      }
+ 188   3                              }
+ 189   2                              else
+ 190   2                              {
+ 191   3                                      sensor1_state = 1;
+ 192   3                                      sensor1_pressed_count = 0;      
+ 193   3                                      sensor1_release_count = 0;                              
+ 194   3                              }
+ 195   2                      break;
+ 196   2                      default:
+ 197   2                              sensor1_state = 1;
+ 198   2                      break;
+ 199   2              }
+ 200   1      //sensor1=====================================
+ 201   1      
+ 202   1      //sensor2=====================================
+ 203   1              switch(sensor2_state)
+ 204   1              {
+ 205   2                      case 1:
+ 206   2                              sensor2 =1;
+ 207   2                              if(sensor2==0)//低电平信号有效
+ 208   2                              {
+ 209   3                                      sensor2_pressed_count++;
+ 210   3                                      if(sensor2_pressed_count==5)
+ 211   3                                      {
+ 212   4                                              sensor2_flg = 1;
+ 213   4                                              sensor2_pressed_count = 0;      
+ 214   4                                      }
+ 215   3                              }
+ 216   2                              else
+ 217   2                              {
+ 218   3                                      sensor2_state = 2;
+ 219   3                                      sensor2_pressed_count = 0;      
+ 220   3                                      sensor2_release_count = 0;      
+ 221   3                              }
+ 222   2                      break;
+ 223   2                      case 2:
+ 224   2                              sensor2 =1;
+ 225   2                              if(sensor2)
+ 226   2                              {
+ 227   3                                      sensor2_release_count++;
+ 228   3                                      if(sensor2_release_count==5)
+ 229   3                                      {
+ 230   4                                              sensor2_flg = 0;
+ 231   4                                              sensor2_release_count = 0;      
+ 232   4                                      }
+ 233   3                              }
+ 234   2                              else
+ 235   2                              {
+ 236   3                                      sensor2_state = 1;
+ 237   3                                      sensor2_pressed_count = 0;      
+ 238   3                                      sensor2_release_count = 0;                              
+ 239   3                              }
+ 240   2                      break;
+ 241   2                      default:
+C51 COMPILER V8.02   MAIN                                                                  07/22/2013 10:33:54 PAGE 5   
 
- 242   1              {
- 243   2                      switch(pos)
- 244   2                      {
- 245   3                              case 1://此时默认电机停止在传感器sensor1位置处 正转到sensor2处
- 246   3                                      ZZ = ON;//电机开始正转
- 247   3                                      if(sensor1_flg)//正转到sensor2处
- 248   3                                      {
- 249   4                                              ZZ = OFF;//正转停止
- 250   4                                              en_motor_run = 0;
- 251   4                                              pos = 2;
- 252   4                                      }
- 253   3                              break;
- 254   3                              case 2://此时默认电机停止在传感器sensor2位置处 反转到sensor1处
- 255   3                                      FZ = ON;//电机开始反转
- 256   3                                      if(sensor2_flg)//反转到sensor1处
- 257   3                                      {
- 258   4                                              FZ = OFF;//反转停止
- 259   4                                              en_motor_run = 0;
- 260   4                                              pos = 1;
- 261   4                                      }                       
- 262   3                              break;
- 263   3                              default:
- 264   3                                      pos = 1;                        
- 265   3                              break;
- 266   3                      }               
- 267   2              }
- 268   1      
- 269   1      }
- 270          
- 271          
- 272          
- 273          
- 274          
- 275          
+ 242   2                              sensor2_state = 1;
+ 243   2                      break;
+ 244   2              }
+ 245   1      //sensor2=====================================  
+ 246   1      }
+ 247          
+ 248          void system_handle(void)
+ 249          {
+ 250   1              static unsigned char key_system_state = 1;
+ 251   1              static unsigned char pos = 1;
+ 252   1              static unsigned char  en_motor_run = 0;
+ 253   1              switch(key_system_state)
+ 254   1              {
+ 255   2                      case 1://等待按键按下
+ 256   2                              if(key_pressed)//按键按下了
+ 257   2                              {
+ 258   3                                      key_system_state = 2;
+ 259   3                              }               
+ 260   2                      break;
+ 261   2                      case 2:
+ 262   2                              if(key_pressed==0)//等待按键松开
+ 263   2                              {
+ 264   3                                      zz_time_flg = 0;
+ 265   3                                      fz_time_flg = 0;
+ 266   3                                      en_motor_run = 1;
+ 267   3                                      key_system_state = 1;
+ 268   3                              }
+ 269   2                      break;
+ 270   2                      default:
+ 271   2                              key_system_state = 1;   
+ 272   2                      break;
+ 273   2                      
+ 274   2              }
+ 275   1      
+ 276   1      
+ 277   1              if(en_motor_run)//允许电机转动
+ 278   1              {
+ 279   2                      switch(pos)
+ 280   2                      {
+ 281   3                              case 1://此时默认电机停止在传感器sensor1位置处 正转到sensor2处
+ 282   3                                      ZZ = ON;//电机开始正转
+ 283   3                                      zz_time_start = 1;
+ 284   3                                      if(zz_time_flg)
+ 285   3                                      {
+ 286   4                                              zz_time_start = 0;      
+ 287   4                                      }
+ 288   3                                      if(sensor1_flg||zz_time_flg)//正转到sensor2处
+ 289   3                                      {
+ 290   4                                              ZZ = OFF;//正转停止
+ 291   4                                              en_motor_run = 0;
+ 292   4                                              pos = 2;
+ 293   4                                      }
+ 294   3                              break;
+ 295   3                              case 2://此时默认电机停止在传感器sensor2位置处 反转到sensor1处
+ 296   3                                      FZ = ON;//电机开始反转
+ 297   3                                      fz_time_start = 1;
+ 298   3                                      if(fz_time_flg)
+ 299   3                                      {
+ 300   4                                              fz_time_start = 0;      
+ 301   4                                      }
+ 302   3                                      if(sensor2_flg||fz_time_flg)//反转到sensor1处
+ 303   3                                      {
+C51 COMPILER V8.02   MAIN                                                                  07/22/2013 10:33:54 PAGE 6   
+
+ 304   4                                              FZ = OFF;//反转停止
+ 305   4                                              en_motor_run = 0;
+ 306   4                                              pos = 1;
+ 307   4                                      }                       
+ 308   3                              break;
+ 309   3                              default:
+ 310   3                                      pos = 1;                        
+ 311   3                              break;
+ 312   3                      }               
+ 313   2              }
+ 314   1      
+ 315   1      }
+ 316          
+ 317          
+ 318          
+ 319          
+ 320          
+ 321          
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    319    ----
+   CODE SIZE        =    377    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =   ----    ----
    PDATA SIZE       =   ----    ----
-   DATA SIZE        =     16    ----
+   DATA SIZE        =     18    ----
    IDATA SIZE       =   ----    ----
-   BIT SIZE         =   ----    ----
+   BIT SIZE         =      4    ----
 END OF MODULE INFORMATION.
 
 
